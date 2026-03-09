@@ -45,9 +45,8 @@ class RandomFourierFeatures(nn.Module):
         return self.scale * torch.cos(projection)  # (batch, n_features)
 
 
-# ============================================================================
 # PARAMETER ENCODER  (3-parameter SIR)
-# ============================================================================
+
 
 class FourierParameterEncoder(nn.Module):
     """
@@ -86,9 +85,8 @@ class FourierParameterEncoder(nn.Module):
         return self.mlp(fourier_features)
 
 
-# ============================================================================
 # B-SPLINE BASIS
-# ============================================================================
+
 
 
 class DifferentiableBSpline(nn.Module):
@@ -100,7 +98,7 @@ class DifferentiableBSpline(nn.Module):
     predictions you saw with plain MLP outputs.
     """
  
-    # number of control points (degree=3 → 10 basis functions)
+    # number of control points (degree=3 ,  10 basis functions)
     def __init__(self, n_knots= n_knots, degree=3, n_eval_points=50):
         super().__init__()
         self.n_knots        = n_knots
@@ -245,22 +243,6 @@ class SplineTemporalDecoderPhysics(nn.Module):
 
 
 class HybridSplineFourierMLPPhysics(nn.Module):
-    """
-    Physics-Informed Hybrid MLP for 3-Parameter SIR Emulation.
-
-    Architecture:
-        params [tau, gamma, rho]
-            ↓
-        FourierParameterEncoder   (RFF → MLP → embedding)
-            ↓
-        Fusion MLP                (embedding → latent z)
-            ↓
-        SplineTemporalDecoderPhysics  (z → S, I, R curves)
-
-    The SpatialMLP (graph-stats branch) has been removed because we are
-    working with a fixed Barabási-Albert network, so graph topology is
-    constant and does not need to be fed as a dynamic input.
-    """
 
     def __init__(
         self,
@@ -270,7 +252,7 @@ class HybridSplineFourierMLPPhysics(nn.Module):
         param_output_dim=16,
         n_knots= n_knots,
         n_timepoints=n_timepoints,
-        total_population=N,
+        total_populati
         fusion_hidden=64, 
         fusion_dropout=0.3,
     ):
@@ -278,7 +260,7 @@ class HybridSplineFourierMLPPhysics(nn.Module):
         self.n_timepoints = n_timepoints
         
 
-        # ── Component 1: Parameter encoder ───────────────────────────────────
+        #  Component 1: Parameter encoder 
         self.param_encoder = FourierParameterEncoder(
             input_dim=n_params,          # 3
             n_fourier=n_fourier_features,
@@ -286,7 +268,7 @@ class HybridSplineFourierMLPPhysics(nn.Module):
             output_dim=param_output_dim,
         )
 
-        # ── Component 2: Fusion (param_emb only; no graph branch) ────────────
+        # ─Component 2: Fusion (
         self.fusion = nn.Sequential(
             nn.Linear(param_output_dim, fusion_hidden),
             nn.BatchNorm1d(fusion_hidden), # recall this applies Applies Batch Normalization over a my 3D input.
@@ -295,7 +277,7 @@ class HybridSplineFourierMLPPhysics(nn.Module):
             nn.Linear(fusion_hidden, fusion_hidden), #Applies an affine linear transformation to the incoming data:
         )
 
-        # ── Component 3: Physics-informed decoder ────────────────────────────
+        # Component 3: Physics-informed decoder 
         self.temporal_decoder = SplineTemporalDecoderPhysics(
             input_dim=fusion_hidden,
             n_knots=n_knots,
@@ -351,14 +333,6 @@ class HybridSplineFourierMLPPhysics(nn.Module):
 def create_hybrid_mlp_model(config):
     """
     Instantiate the 3-parameter SIR hybrid model from a config dict.
-
-    Minimal required keys:
-        n_fourier, fourier_hidden, param_hidden, temporal_hidden,
-        dropout, n_knots, n_timepoints, total_population
-
-    Keys that were relevant to the old 7-parameter age-structured model
-    (mlp_input_dim, mlp_hidden, mlp_layers) are silently ignored if present,
-    so old checkpoints/configs don't break on load.
     """
     model = HybridSplineFourierMLPPhysics(
         n_params=config.get('n_params', 3),
@@ -405,18 +379,4 @@ if __name__ == "__main__":
     
     #[tau, gamma, rho]  →  FourierEncoder  →  Fusion  →  SplineDecoder- Something to tell Alex")
 
-    # Smoke test — FakeBatch must match BatchWrapper API from utils_SIR
-    import types
-    fake = types.SimpleNamespace(
-        params_norm = torch.rand(4, 3),               # normalised [0,1]
-        rho_raw     = torch.FloatTensor([0.005]*4),   # raw rho
-    )
-    model.eval()
-    with torch.no_grad():
-        out = model(fake)
-    print(f"\n  Smoke test output shape : {out.shape}")   # expect (4, 50, 3)
-
-    S, I, R = out[:,:,0], out[:,:,1], out[:,:,2]
-    print(f"  Conservation check S+I+R=N  max error: {(S+I+R - N).abs().max().item():.4f}")
-    print(f"  I(0) pinned to rho*N=50:    max error: {(I[:,0] - 50.0).abs().max().item():.4f}")
-    print(f"  S(0) pinned to (1-rho)*N:   max error: {(S[:,0] - 9950.0).abs().max().item():.4f}")
+   
